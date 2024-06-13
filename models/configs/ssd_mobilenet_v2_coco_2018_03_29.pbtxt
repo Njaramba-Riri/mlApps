@@ -1,4 +1,4 @@
-git push origin --force --tagsnode {
+node {
   name: "image_tensor"
   op: "Placeholder"
   attr {

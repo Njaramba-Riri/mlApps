@@ -3,15 +3,15 @@ from PIL import Image
 import numpy as np
 import streamlit as st
 import tempfile
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
-
-from utils import detect_objects, display_objects, detect_video
+from utils import detect_objects, display_objects, detect_video, VideoTransformer
 
 cd = os.getcwd()
 default = os.path.join(cd, 'data/videos/faces.mp4')
 file = os.path.join(cd, 'data/images/street.jpg')
 
-st.set_page_config(page_title="Object Detector")
+st.set_page_config(page_title="Object Detector", page_icon=":smiley:")
 
 st.title("Object Detector: Identify objects in image or video frames.")
 st.page_link("https://ririnjaramba.onrender.com", label=":blue-background[Developer Portfolio]", icon=":material/globe:")
@@ -57,4 +57,13 @@ elif option == "Video":
             st.rerun()
         
 elif option == "Camera":
-    detect_video(flip=True)
+    st.write("Click 'Start' to open the webcam and perform live face detection.")
+    webrtc_ctx = webrtc_streamer(
+        key="live-face-detection",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        video_processor_factory=VideoTransformer,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True
+    )
+    # detect_video(flip=True)

@@ -77,12 +77,44 @@ def detect_faces(img):
                     .5, (0, 0, 0), 1)
     return image
 
-def real_timeDetection(model=model, source=s):
+def process_frame(video_frame, model=model, threshold=0.5):
+    frame = cv.flip(video_frame, 1)
+    frame_height, frame_width = frame.shape[:2]
+    
+    blob = cv.dnn.blobFromImage(frame, 0.5, (dim, dim), mean, swapRB=False, crop=False)
+    
+    model.setInput(blob=blob)
+    detections = model.forward()
+    
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > conf_thresh:
+            x_bottom_left = int(detections[0, 0, i, 3] * frame_width)
+            y_bottom_left = int(detections[0, 0, i, 4] * frame_height)
+            x_top_right = int(detections[0, 0, i, 5] * frame_width)
+            y_top_right = int(detections[0, 0, i, 6] * frame_height)
+            
+            cv.rectangle(frame, (x_bottom_left, y_bottom_left), (x_top_right, y_top_right), (255, 117, 234), 2)
+            
+            label = "Confidence: {:.2f}%".format(confidence * 100)
+            label_size, baseline = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, .5, 2)
+            cv.rectangle(frame, (x_bottom_left, y_bottom_left - label_size[1]),
+                            (x_bottom_left + label_size[0], y_bottom_left + baseline), (255, 255, 243), cv.FILLED)
+            cv.putText(frame, label, (x_bottom_left, y_bottom_left), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 0), 1)
+    
+    t, _ = model.getPerfProfile()
+    label = "Inference time: %.2f ms" % (t * 1000 / cv.getTickFrequency())
+    cv.putText(frame, label, (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 255))
+    
+    return frame
+
+def real_timeDetection(model=model, source=s, conf_thresh=0.5):
     cap = cv.VideoCapture(source)
     stframe = st.empty()
     
     if not cap.isOpened():
         st.error("There is a problem while trying to access the video file.")   
+        
         return
     
     while cap.isOpened():
@@ -90,34 +122,7 @@ def real_timeDetection(model=model, source=s):
         if not ret:
             break
         
-        frame = cv.flip(frame, 1)
-        frame_height, frame_width = frame.shape[:2]
-        
-        blob = cv.dnn.blobFromImage(frame, 0.5, (dim, dim), mean, swapRB=False, crop=False)
-        
-        model.setInput(blob=blob)
-        detections = model.forward()
-        
-        for i in range(detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
-            if confidence > conf_thresh:
-                x_bottom_left = int(detections[0, 0, i, 3] * frame_width)
-                y_bottom_left = int(detections[0, 0, i, 4] * frame_height)
-                x_top_right = int(detections[0, 0, i, 5] * frame_width)
-                y_top_right = int(detections[0, 0, i, 6] * frame_height)
-                
-                cv.rectangle(frame, (x_bottom_left, y_bottom_left), (x_top_right, y_top_right), (255, 117, 234), 2)
-                
-                label = "Confidence: {:.2f}%".format(confidence * 100)
-                label_size, baseline = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, .5, 2)
-                cv.rectangle(frame, (x_bottom_left, y_bottom_left - label_size[1]),
-                             (x_bottom_left + label_size[0], y_bottom_left + baseline), (255, 255, 243), cv.FILLED)
-                cv.putText(frame, label, (x_bottom_left, y_bottom_left), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 0), 1)
-        
-        t, _ = model.getPerfProfile()
-        label = "Inference time: %.2f ms" % (t * 1000 / cv.getTickFrequency())
-        cv.putText(frame, label, (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 255))
-        
-        stframe.image(frame, channels="BGR", caption="Real-time Detection")
+        processed = process_frame(frame, threshold=conf_thresh)
+        stframe.image(processed, channels="BGR", use_column_width=True)
 
     cap.release()

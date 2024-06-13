@@ -1,20 +1,46 @@
 import os
 import sys
 import requests
-import tempfile
-import numpy as np
-import matplotlib.pyplot as plt
+import zipfile
+import av
 import cv2 as cv
+import tensorflow as tf
 import streamlit as st
 from streamlit_webrtc import VideoProcessorBase
 
-
 cd = os.getcwd()
-
 modelFile = os.path.join(cd, "models/frozen_inference_graph.pb")
 configFile = os.path.join(cd, 'models/configs/ssd_mobilenet_v2_coco_2018_03_29.pbtxt')
-labelFile = os.path.join(cd, 'models/labels/coco_class_labels.txt')
+labelFile = os.path.join(cd, 'models/configs/labels/coco_class_labels.txt')
+model_url = 'https://github.com/ChiekoN/OpenCV_SSD_MobileNet/raw/master/model/frozen_inference_graph.pb'
 
+def download_and_unzip(url, extract_to="."):
+    # Download the zip file
+    response = requests.get(url)
+    zip_path = os.path.join(extract_to, "model.zip")
+    with open(zip_path, 'wb') as f:
+        f.write(response.content)
+    
+    # Extract the zip file
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    
+    os.remove(zip_path)
+
+
+def load_model_from_url(url):
+    response = requests.get(url)
+    graph_def = tf.compat.v1.GraphDef()
+    graph_def.ParseFromString(response.content)
+    
+    with tf.compat.v1.Graph().as_default() as graph:
+        tf.import_graph_def(graph_def, name="")
+    return graph
+
+url = 'https://github.com/yourusername/yourrepository/raw/master/model.zip'
+# download_and_unzip(url, extract_to="models")
+
+# modelFile = load_model_from_url(model_url)
 
 model = cv.dnn.readNetFromTensorflow(modelFile, configFile)
 with open(labelFile) as cl:
@@ -30,6 +56,41 @@ s = 0
 if len(sys.argv) > 1:
     s = sys.argv[1]
     
+
+class VideoTransformer(VideoProcessorBase):
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        img = frame.to_ndarray(format="bgr24")
+
+        frame_height, frame_width = img.shape[:2]
+
+        blob = cv.dnn.blobFromImage(img, 0.5, (DIM, DIM), MEAN, swapRB=False, crop=False)
+        model.setInput(blob)
+        detections = model.forward()
+
+        for i in range(detections.shape[2]):
+            confidence = detections[0, 0, i, 2]
+            if confidence > 0.5:
+                classId = int(detections[0, 0, i, 1])
+                x_bottom_left = int(detections[0, 0, i, 3] * frame_width)
+                y_bottom_left = int(detections[0, 0, i, 4] * frame_height)
+                x_top_right = int(detections[0, 0, i, 5] * frame_width)
+                y_top_right = int(detections[0, 0, i, 6] * frame_height)
+
+                cv.rectangle(img, (x_bottom_left, y_bottom_left), (x_top_right, y_top_right), (255, 117, 234), 2)
+
+                label = "{}: {:.2f}%".format(labels[classId].capitalize(), confidence * 100)
+                label_size, baseline = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, .5, 2)
+                cv.rectangle(img, (x_bottom_left, y_bottom_left - label_size[1]),
+                             (x_bottom_left + label_size[0], y_bottom_left + baseline), (255, 255, 243), cv.FILLED)
+                cv.putText(img, label, (x_bottom_left, y_bottom_left), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 0), 1)
+
+        t, _ = model.getPerfProfile()
+        label = "Inference time: %.2f ms" % (t * 1000 / cv.getTickFrequency())
+        cv.putText(img, label, (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 255))
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+
 def detect_objects(img, model=model):
     # image = cv.imread(img, cv.COLOR_RGB2BGR)
     blob = cv.dnn.blobFromImage(img, 1.0, size=(DIM, DIM), mean=MEAN, swapRB=True, crop=False)
@@ -99,7 +160,7 @@ def detect_video(source=s, flip=False):
         objects = detect_objects(frame)
         identified = display_objects(frame, objects, threshold=0.55)
         
-        stframe.image(identified, "Detected Objects", channels="BGR")
+        stframe.image(identified, caption="Detected Objects", channels="BGR")
             
     cap.release()
     
