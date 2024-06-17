@@ -1,5 +1,6 @@
 import os
 import tempfile
+import threading
 import numpy as np
 from PIL import Image
 import cv2 as cv
@@ -26,15 +27,23 @@ if option == "----- Select One ------":
         st.rerun()
 
 elif option == "Camera":
+    sidebar = st.sidebar
+    
     st.write("Click 'Start' to open the webcam and perform live face detection.")
+    
+    processor = VideoTransformer(thresh=0.5)
     webrtc_ctx = webrtc_streamer(
         key="live-face-detection",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-        video_processor_factory=VideoTransformer,
+        video_processor_factory=lambda: processor,
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True
     )
+    if webrtc_ctx.video_processor:
+        sidebar.header("See how the model identifies faces under different")
+        thresh = sidebar.slider("Adjust threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+        webrtc_ctx.video_processor.conf_thresh = thresh
     
 elif option == "Upload Image":
     uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'png', 'jpeg'])
@@ -56,7 +65,7 @@ elif option == "Upload Video":
             tfile.close()
             
             real_timeDetection(source=tfile.name, conf_thresh=threshold)
-    
+            
             if st.button('Re-run'):
                 st.rerun()
         

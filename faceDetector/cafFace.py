@@ -23,6 +23,9 @@ mean = (104.0, 177.0, 123.0)
 conf_thresh = 0.2
 
 class VideoTransformer(VideoProcessorBase):
+    def __init__(self, thresh=0.5):
+        self.conf_thresh = thresh
+        
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
@@ -34,7 +37,7 @@ class VideoTransformer(VideoProcessorBase):
 
         for i in range(detections.shape[2]):
             confidence = detections[0, 0, i, 2]
-            if confidence > conf_thresh:
+            if confidence > self.conf_thresh:
                 x_bottom_left = int(detections[0, 0, i, 3] * frame_width)
                 y_bottom_left = int(detections[0, 0, i, 4] * frame_height)
                 x_top_right = int(detections[0, 0, i, 5] * frame_width)
@@ -47,7 +50,7 @@ class VideoTransformer(VideoProcessorBase):
                 cv.rectangle(img, (x_bottom_left, y_bottom_left - label_size[1]),
                              (x_bottom_left + label_size[0], y_bottom_left + baseline), (255, 255, 243), cv.FILLED)
                 cv.putText(img, label, (x_bottom_left, y_bottom_left), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 0), 1)
-
+        
         t, _ = model.getPerfProfile()
         label = "Inference time: %.2f ms" % (t * 1000 / cv.getTickFrequency())
         cv.putText(img, label, (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 255))
@@ -108,7 +111,7 @@ def process_frame(video_frame, model=model, threshold=0.5):
     
     return frame
 
-def real_timeDetection(model=model, source=s, conf_thresh=0.5):
+def real_timeDetection(source=s, conf_thresh=0.5):
     cap = cv.VideoCapture(source)
     stframe = st.empty()
     
