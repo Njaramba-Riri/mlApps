@@ -41,7 +41,7 @@ elif option == "Camera":
         async_processing=True
     )
     if webrtc_ctx.video_processor:
-        sidebar.header("See how the model identifies faces under different")
+        sidebar.header("See how the model identifies faces under different thresholds")
         thresh = sidebar.slider("Adjust threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
         webrtc_ctx.video_processor.conf_thresh = thresh
     
