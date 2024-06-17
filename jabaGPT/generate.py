@@ -16,7 +16,7 @@ modelPy = tf.keras.models.load_model(modelPy)
 modelIs = os.path.join(cd, 'models/Island.keras')
 modelIs = tf.keras.models.load_model(modelIs)
 
-random = np.random.randint(100, 2500)
+random = np.random.randint(100, 500)
 
 def load_data(default_path=True, start_txt='Python Machine Learning', 
          end_txt='zero-padding'):
@@ -79,7 +79,7 @@ def generate_text(default_model=True, prompt_str=None, text_len=random,
         encoded_input = tf.concat([encoded_input, new_char_idx_tensor], axis=1)
         encoded_input = encoded_input[:, -max_input_length:]
         
-        height = len(generated_str) // 2
+        height = len(generated_str) // 3
         
         text.text_area(f"Generated text: { len(generated_str) } of {random + len(prompt_str)}", generated_str, height=height)
     
