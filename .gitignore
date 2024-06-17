@@ -5,3 +5,5 @@ vscode
 *.jar
 
 venv/
+test_suite_analysis/
+managed_context/
